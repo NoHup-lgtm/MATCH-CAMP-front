@@ -12,7 +12,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
 import { colors, spacing, radius } from '../theme';
 
 const { height } = Dimensions.get('window');
@@ -45,7 +46,25 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      navigation.replace('Home');
+      try {
+        let root = navigation;
+        while (root.getParent && root.getParent() != null) {
+          root = root.getParent();
+        }
+        root.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'App' }],
+          })
+        );
+      } catch (e) {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'App' }],
+          })
+        );
+      }
     }, 1200);
   };
 
@@ -69,7 +88,7 @@ export default function LoginScreen({ navigation }) {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="chevron-back" size={24} color="#9898B3" />
+            <MaterialCommunityIcons name="chevron-left" size={24} color="#9898B3" />
           </TouchableOpacity>
 
           {/* Header */}
@@ -134,7 +153,7 @@ export default function LoginScreen({ navigation }) {
                   style={styles.eyeButton}
                 >
                   <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    name={showPassword ? 'eye-off' : 'eye'}
                     size={20}
                     color="#9898B3"
                   />

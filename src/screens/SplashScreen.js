@@ -7,7 +7,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, fonts } from '../theme';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, fonts, spacing } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,8 +17,24 @@ export default function SplashScreen({ navigation }) {
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const dotsOpacity = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
     Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, {

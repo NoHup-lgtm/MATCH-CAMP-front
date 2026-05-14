@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
@@ -30,6 +31,12 @@ export default function HomeScreen({ navigation }) {
   const [profiles, setProfiles] = useState(MOCK_PROFILES);
   const [activeTab, setActiveTab] = useState('home');
   const [matchAlert, setMatchAlert] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      setActiveTab('home');
+    }, [])
+  );
 
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({
@@ -69,14 +76,14 @@ export default function HomeScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn}>
-          <Ionicons name="options-outline" size={22} color="#9898B3" />
+          <MaterialCommunityIcons name="tune-vertical" size={22} color="#9898B3" />
         </TouchableOpacity>
         <View style={styles.logoRow}>
           <Text style={styles.logoFire}>🔥</Text>
           <Text style={styles.logoText}>MatchCamp</Text>
         </View>
         <TouchableOpacity style={styles.headerBtn}>
-          <Ionicons name="notifications-outline" size={22} color="#9898B3" />
+          <MaterialCommunityIcons name="bell" size={22} color="#9898B3" />
           <View style={styles.notifDot} />
         </TouchableOpacity>
       </View>
@@ -154,14 +161,14 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.nameRow}>
                     <Text style={styles.cardName}>{current.name}</Text>
                     <Text style={styles.cardAge}>, {current.age}</Text>
-                    <Ionicons name="checkmark-circle" size={18} color="#06D6A0" style={{ marginLeft: 6 }} />
+                    <MaterialCommunityIcons name="check-circle" size={18} color="#06D6A0" style={{ marginLeft: 6 }} />
                   </View>
                   <View style={styles.courseRow}>
-                    <Ionicons name="school-outline" size={14} color="#9898B3" />
+                    <MaterialCommunityIcons name="school-outline" size={14} color="#9898B3" />
                     <Text style={styles.courseText}>{current.course} • {current.semester}</Text>
                   </View>
                   <View style={styles.distanceRow}>
-                    <Ionicons name="location-outline" size={14} color="#FF4B6E" />
+                    <MaterialCommunityIcons name="map-marker" size={14} color="#FF4B6E" />
                     <Text style={styles.distanceText}>{current.distance}</Text>
                   </View>
                   <Text style={styles.cardBio}>{current.bio}</Text>
@@ -197,21 +204,45 @@ export default function HomeScreen({ navigation }) {
 
       {/* Bottom nav */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
-        {[
-          { id: 'home', icon: 'flame', label: 'Início' },
-          { id: 'match', icon: 'heart', label: 'Matches' },
-          { id: 'chat', icon: 'chatbubble', label: 'Mensagens' },
-          { id: 'profile', icon: 'person', label: 'Perfil' },
-        ].map((tab) => (
-          <TouchableOpacity key={tab.id} style={styles.navItem} onPress={() => setActiveTab(tab.id)}>
-            <Ionicons
-              name={activeTab === tab.id ? tab.icon : `${tab.icon}-outline`}
-              size={24}
-              color={activeTab === tab.id ? '#FF4B6E' : '#555570'}
-            />
-            <Text style={[styles.navLabel, activeTab === tab.id && styles.navLabelActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {[ 
+          { id: 'home', label: 'Início' },
+          { id: 'match', label: 'Matches' },
+          { id: 'chat', label: 'Mensagens' },
+          { id: 'profile', label: 'Perfil' },
+        ].map((tab) => {
+          let iconName = 'circle';
+          if (tab.id === 'home') iconName = activeTab === tab.id ? 'flame' : 'flame-outline';
+          else if (tab.id === 'match') iconName = activeTab === tab.id ? 'heart' : 'heart-outline';
+          else if (tab.id === 'chat') iconName = activeTab === tab.id ? 'chatbubble' : 'chatbubble-outline';
+          else if (tab.id === 'profile') iconName = activeTab === tab.id ? 'person-circle' : 'person-circle-outline';
+
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={styles.navItem}
+              onPress={() => {
+                setActiveTab(tab.id);
+                const rootNav = (() => {
+                  let r = navigation;
+                  while (r && r.getParent && r.getParent() != null) r = r.getParent();
+                  return r || navigation;
+                })();
+
+                if (tab.id === 'home') rootNav.navigate('HomeTab');
+                else if (tab.id === 'match') rootNav.navigate('MatchesTab', { activeTab: 'matches' });
+                else if (tab.id === 'chat') rootNav.navigate('MatchesTab', { activeTab: 'messages' });
+                else if (tab.id === 'profile') rootNav.navigate('ProfileTab');
+              }}
+            >
+              <Ionicons
+                name={iconName}
+                size={24}
+                color={activeTab === tab.id ? '#FF4B6E' : '#555570'}
+              />
+              <Text style={[styles.navLabel, activeTab === tab.id && styles.navLabelActive]}>{tab.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
