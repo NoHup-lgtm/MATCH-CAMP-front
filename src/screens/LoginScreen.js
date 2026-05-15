@@ -5,20 +5,17 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Animated,
-  Dimensions,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
-
-const { height } = Dimensions.get('window');
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,43 +26,26 @@ export default function LoginScreen({ navigation }) {
   const buttonScale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(buttonScale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(buttonScale, { toValue: 0.96, useNativeDriver: true }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(buttonScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(buttonScale, { toValue: 1, useNativeDriver: true }).start();
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Atenção', 'Preencha e-mail e senha.');
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await login(email.trim().toLowerCase(), password);
+    } catch (err) {
+      Alert.alert('Erro ao entrar', err.message || 'Verifique suas credenciais.');
+    } finally {
       setLoading(false);
-      try {
-        let root = navigation;
-        while (root.getParent && root.getParent() != null) {
-          root = root.getParent();
-        }
-        root.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'App' }],
-          })
-        );
-      } catch (e) {
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'App' }],
-          })
-        );
-      }
-    }, 1200);
+    }
   };
 
   return (
@@ -74,21 +54,17 @@ export default function LoginScreen({ navigation }) {
       <View style={styles.blob1} />
       <View style={styles.blob2} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           {/* Back button */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Onboarding')}
           >
-            <MaterialCommunityIcons name="chevron-left" size={24} color="#9898B3" />
+            <Ionicons name="chevron-back" size={24} color="#9898B3" />
           </TouchableOpacity>
 
           {/* Header */}
@@ -97,14 +73,14 @@ export default function LoginScreen({ navigation }) {
               <Text style={styles.logoEmoji}>🔥</Text>
             </View>
             <Text style={styles.title}>Bem-vindo{'\n'}de volta</Text>
-            <Text style={styles.subtitle}>Entre com seu e-mail institucional</Text>
+            <Text style={styles.subtitle}>Entre com seu e-mail e senha</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>E-mail institucional</Text>
+              <Text style={styles.label}>E-mail</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <Ionicons
                   name="mail-outline"
@@ -114,7 +90,7 @@ export default function LoginScreen({ navigation }) {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="seu@faculdade.edu.br"
+                  placeholder="seu@email.com"
                   placeholderTextColor="#555570"
                   value={email}
                   onChangeText={setEmail}
@@ -153,7 +129,7 @@ export default function LoginScreen({ navigation }) {
                   style={styles.eyeButton}
                 >
                   <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
                     color="#9898B3"
                   />
@@ -189,18 +165,6 @@ export default function LoginScreen({ navigation }) {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social button */}
-            <TouchableOpacity style={styles.googleButton}>
-              <Text style={styles.googleEmoji}>🎓</Text>
-              <Text style={styles.googleText}>Entrar com conta institucional</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Register */}
@@ -210,8 +174,7 @@ export default function LoginScreen({ navigation }) {
               <Text style={styles.registerLink}>Cadastre-se</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </LinearGradient>
   );
 }

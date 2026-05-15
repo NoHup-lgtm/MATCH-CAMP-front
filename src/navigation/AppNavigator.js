@@ -1,156 +1,85 @@
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { View, ActivityIndicator } from 'react-native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+
+import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme';
 
-// Screens
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
-import HomeScreen from '../screens/HomeScreen';
+import DiscoveryScreen from '../screens/DiscoveryScreen';
 import MatchesScreen from '../screens/MatchesScreen';
+import ChatListScreen from '../screens/ChatListScreen';
+import ChatScreen from '../screens/ChatScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Auth Stack
-function AuthStack() {
-  return (
-    <Stack.Navigator
-      screenOptions={{ headerShown: false }}
-    >
-      <Stack.Screen 
-        name="Splash" 
-        component={SplashScreen}
-        options={{ animationEnabled: false }}
-      />
-      <Stack.Screen 
-        name="Onboarding" 
-        component={OnboardingScreen}
-        options={{
-          animationEnabled: true,
-          transitionSpec: {
-            open: { animation: 'timing', config: { duration: 400 } },
-            close: { animation: 'timing', config: { duration: 400 } },
-          },
-        }}
-      />
-      <Stack.Screen 
-        name="Login" 
-        component={LoginScreen}
-        options={{
-          animationEnabled: true,
-          transitionSpec: {
-            open: { animation: 'timing', config: { duration: 400 } },
-            close: { animation: 'timing', config: { duration: 400 } },
-          },
-        }}
-      />
-      <Stack.Screen 
-        name="Register" 
-        component={RegisterScreen}
-        options={{
-          animationEnabled: true,
-          transitionSpec: {
-            open: { animation: 'timing', config: { duration: 400 } },
-            close: { animation: 'timing', config: { duration: 400 } },
-          },
-        }}
-      />
-    </Stack.Navigator>
-  );
-}
+const TAB_ICONS = {
+  Discovery: ['flame', 'flame-outline'],
+  Matches: ['heart', 'heart-outline'],
+  Chats: ['chatbubbles', 'chatbubbles-outline'],
+  Profile: ['person', 'person-outline'],
+};
 
-// App Stack (Tab Navigation)
-function AppTabs() {
+function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          
-          if (route.name === 'HomeTab') {
-            iconName = focused ? 'flame' : 'flame-outline';
-          } else if (route.name === 'MatchesTab') {
-            iconName = focused ? 'heart' : 'heart-outline';
-          } else if (route.name === 'ProfileTab') {
-            iconName = focused ? 'person-circle' : 'person-circle-outline';
-          }
-          
-          return (
-            <Ionicons
-              name={iconName}
-              size={size}
-              color={color}
-            />
-          );
-        },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.gray,
         tabBarStyle: {
           backgroundColor: colors.dark,
-          borderTopColor: colors.darkBorder,
-          borderTopWidth: 1,
-          height: 64,
-          paddingVertical: 8,
+          borderTopColor: 'rgba(255,255,255,0.1)',
+          height: 60,
+          paddingBottom: 8,
         },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          marginTop: -4,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.4)',
+        tabBarIcon: ({ focused, color, size }) => {
+          const [active, inactive] = TAB_ICONS[route.name];
+          return <Ionicons name={focused ? active : inactive} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: 'Início',
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-      <Tab.Screen
-        name="MatchesTab"
-        component={MatchesScreen}
-        options={{
-          tabBarLabel: 'Matches',
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Perfil',
-          tabBarStyle: { display: 'none' },
-        }}
-      />
+      <Tab.Screen name="Discovery" component={DiscoveryScreen} options={{ title: 'Descobrir' }} />
+      <Tab.Screen name="Matches" component={MatchesScreen} options={{ title: 'Matches' }} />
+      <Tab.Screen name="Chats" component={ChatListScreen} options={{ title: 'Mensagens' }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
     </Tab.Navigator>
   );
 }
 
-// Root Navigator
 export default function AppNavigator() {
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.dark }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
-    <Stack.Navigator
-      screenOptions={{ headerShown: false }}
-      initialRouteName={isLoggedIn ? 'App' : 'Auth'}
-    >
-      <Stack.Screen
-        name="Auth"
-        component={AuthStack}
-        options={{ animationEnabled: false }}
-      />
-      <Stack.Screen
-        name="App"
-        component={AppTabs}
-        options={{ animationEnabled: false }}
-      />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {user ? (
+        <>
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Chat" component={ChatScreen} />
+        </>
+      ) : (
+        <>
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        </>
+      )}
     </Stack.Navigator>
   );
 }

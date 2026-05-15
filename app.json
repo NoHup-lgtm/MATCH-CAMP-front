@@ -1,23 +1,18 @@
 {
   "expo": {
     "name": "MatchCamp",
-    "slug": "match-camp",
+    "slug": "matchcamp",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0D0D1A"
     },
-    "updates": {
-      "fallbackToCacheTimeout": 0
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTabletMode": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.matchcamp.app"
     },
     "android": {
@@ -25,17 +20,18 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D1A"
       },
-      "package": "com.matchcamp.app",
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "package": "com.matchcamp.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O app precisa de acesso à sua galeria para adicionar fotos ao perfil."
+        }
+      ]
     ]
   }
 }

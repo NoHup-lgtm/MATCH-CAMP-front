@@ -5,507 +5,317 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Image,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, fonts, radius } from '../theme';
-import {
-  Card,
-  StatsCard,
-  Badge,
-  Header,
-  Chip,
-  Divider,
   Alert,
-} from '../components';
+  ActivityIndicator,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
+import * as api from '../services/api';
 
-export default function ProfileScreen({ navigation }) {
+const AVATAR_COLORS = ['#FF4B6E', '#6C63FF', '#FFD166', '#06D6A0', '#FF9F1C'];
+
+function colorFor(id) {
+  if (!id) return AVATAR_COLORS[0];
+  return AVATAR_COLORS[id.charCodeAt(0) % AVATAR_COLORS.length];
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+export default function ProfileScreen() {
+  const { user, logout, refreshMe } = useAuth();
   const insets = useSafeAreaInsets();
-  const [bottomNavActive, setBottomNavActive] = useState('profile');
-  
-  useFocusEffect(
-    useCallback(() => {
-      setBottomNavActive('profile');
-    }, [])
-  );
+  const [profile, setProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({ display_name: '', bio: '', course: '', campus: '' });
 
-  const [profile, setProfile] = useState({
-    name: 'Gabriel Silva',
-    age: 22,
-    course: 'Engenharia de Software',
-    semester: '7º semestre',
-    bio: 'Apaixonado por tecnologia, games e novas amizades 🚀',
-    location: 'Campus Principal',
-    verified: true,
-    stats: {
-      likes: 42,
-      matches: 12,
-      views: 186,
-    },
-    interests: ['Tecnologia', 'Games', 'Café', 'Música'],
-    photos: 3,
-  });
+  const load = useCallback(async () => {
+    try {
+      const me = await api.getMe();
+      setProfile(me);
+      setForm({
+        display_name: me.display_name || '',
+        bio: me.bio || '',
+        course: me.course || '',
+        campus: me.campus || '',
+      });
+    } catch {}
+  }, []);
 
-  const [isEditingMode, setIsEditingMode] = useState(false);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.updateProfile({
+        display_name: form.display_name.trim() || undefined,
+        bio: form.bio.trim() || undefined,
+        course: form.course.trim() || undefined,
+        campus: form.campus.trim() || undefined,
+      });
+      await load();
+      await refreshMe();
+      setEditing(false);
+    } catch (err) {
+      Alert.alert('Erro', err.message || 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    const currentPhotos = profile?.photos || [];
+    if (currentPhotos.length >= 3) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão negada', 'Precisamos de acesso à sua galeria.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    const usedPositions = new Set(currentPhotos.map(p => p.position));
+    const position = [0, 1, 2].find(p => !usedPositions.has(p)) ?? currentPhotos.length;
+
+    setUploading(true);
+    try {
+      await api.uploadProfilePhoto(result.assets[0].uri, position);
+      await load();
+    } catch (err) {
+      Alert.alert('Erro', err.message || 'Não foi possível enviar a foto.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = (photoId) => {
+    Alert.alert('Remover foto', 'Tem certeza?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover', style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deleteProfilePhoto(photoId);
+            await load();
+          } catch (err) {
+            Alert.alert('Erro', err.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: logout },
+    ]);
+  };
+
+  const displayName = profile?.display_name || user?.name || 'Usuário';
+  const color = colorFor(user?.id);
+  const firstPhoto = profile?.photos?.[0];
 
   return (
-    <LinearGradient
-      colors={colors.gradientDark}
-      style={styles.container}
-    >
-      <Header
-        title={isEditingMode ? 'Editar Perfil' : 'Meu Perfil'}
-        subtitle={isEditingMode ? 'Atualize suas informações' : 'Você está incrível!'}
-        rightIcon={isEditingMode ? 'check' : 'pencil'}
-        onRightPress={() => setIsEditingMode(!isEditingMode)}
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Profile Header Card */}
-        <Card style={styles.profileCard} gradient>
-          <LinearGradient
-            colors={['transparent', colors.dark]}
-            style={styles.profileGradient}
-          >
-            <View style={styles.profileHeader}>
-              <View style={styles.avatarContainer}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarEmoji}>👨‍💻</Text>
-                </View>
-                <TouchableOpacity style={styles.editAvatarButton}>
-                  <MaterialCommunityIcons
-                    name="camera"
-                    size={16}
-                    color={colors.white}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.profileInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.name}>{profile.name}</Text>
-                  {profile.verified && (
-                    <MaterialCommunityIcons
-                      name="check-circle"
-                      size={18}
-                      color={colors.success}
-                      style={styles.verifiedBadge}
-                    />
-                  )}
-                </View>
-                <Text style={styles.age}>{profile.age} anos</Text>
-                <Text style={styles.course}>{profile.course}</Text>
-              </View>
-
-              <TouchableOpacity style={styles.shareButton}>
-                <MaterialCommunityIcons
-                  name="share-variant"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.bioContainer}>
-              <Text style={styles.bio}>{profile.bio}</Text>
-              <View style={styles.locationRow}>
-                <MaterialCommunityIcons
-                  name="map-marker"
-                  size={14}
-                  color={colors.primary}
-                />
-                <Text style={styles.location}>{profile.location}</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </Card>
-
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <StatsCard
-            icon="heart"
-            label="Likes"
-            value={profile.stats.likes}
-            color={colors.primary}
-          />
-          <StatsCard
-            icon="fire"
-            label="Matches"
-            value={profile.stats.matches}
-            color={colors.accent}
-          />
-          <StatsCard
-            icon="eye"
-            label="Visualizações"
-            value={profile.stats.views}
-            color={colors.secondary}
-          />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Perfil</Text>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color="#9898B3" />
+          </TouchableOpacity>
         </View>
 
-        {/* Alert */}
-        <Alert
-          type="info"
-          title="Perfil Incompleto"
-          message="Adicione mais fotos para aumentar suas chances de match"
-        />
+        {/* Avatar section */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity style={styles.avatarTap} onPress={handlePickPhoto} disabled={uploading}>
+            {firstPhoto ? (
+              <Image source={{ uri: firstPhoto.url }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: color + '33' }]}>
+                <Text style={[styles.avatarInitials, { color }]}>{getInitials(displayName)}</Text>
+              </View>
+            )}
+            <View style={styles.avatarEdit}>
+              {uploading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="camera" size={16} color="#fff" />
+              }
+            </View>
+          </TouchableOpacity>
 
-        {/* Photos Section */}
-        <Card style={styles.sectionCard} variant="surface">
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Fotos</Text>
-            <TouchableOpacity style={styles.addButton}>
-              <MaterialCommunityIcons
-                name="plus"
-                size={20}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.profileName}>{displayName}</Text>
+          {profile?.age && <Text style={styles.profileAge}>{profile.age} anos</Text>}
+          <Text style={styles.profileEmail}>{user?.email}</Text>
+        </View>
 
-          <View style={styles.photosGrid}>
-            {[1, 2, 3].map((i) => (
-              <TouchableOpacity
-                key={i}
-                style={[
-                  styles.photoItem,
-                  i <= profile.photos && styles.photoItemFilled,
-                ]}
-              >
-                {i <= profile.photos ? (
-                  <View style={styles.photoPlaceholder}>
-                    <Text style={styles.photoEmoji}>📷</Text>
+        {/* Photo grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fotos (máx. 3)</Text>
+          <View style={styles.photoGrid}>
+            {(profile?.photos || []).map((photo, idx) => (
+              <View key={photo.id} style={styles.photoWrap}>
+                <Image source={{ uri: photo.url }} style={styles.photoThumb} />
+                <TouchableOpacity style={styles.photoDelete} onPress={() => handleDeletePhoto(photo.id)}>
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+                {idx === 0 && (
+                  <View style={styles.photoPrimary}>
+                    <Text style={styles.photoPrimaryText}>Principal</Text>
                   </View>
-                ) : (
-                  <MaterialCommunityIcons
-                    name="plus"
-                    size={24}
-                    color={colors.gray}
-                  />
                 )}
+              </View>
+            ))}
+            {(profile?.photos?.length ?? 0) < 3 && (
+              <TouchableOpacity style={styles.photoAdd} onPress={handlePickPhoto} disabled={uploading}>
+                {uploading ? <ActivityIndicator color="#555570" /> : <Ionicons name="add" size={28} color="#555570" />}
               </TouchableOpacity>
-            ))}
+            )}
           </View>
-        </Card>
+        </View>
 
-        {/* Interests Section */}
-        <Card style={styles.sectionCard} variant="surface">
+        {/* Info section */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Meus Interesses</Text>
-            <TouchableOpacity>
-              <MaterialCommunityIcons
-                name="pencil"
-                size={18}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Sobre mim</Text>
+            {!editing && (
+              <TouchableOpacity onPress={() => setEditing(true)}>
+                <Text style={styles.editLink}>Editar</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <View style={styles.interests}>
-            {profile.interests.map((interest, index) => (
-              <Chip
-                key={index}
-                label={interest}
-                variant="primary"
-                size="sm"
-                onClose={() => {}}
-              />
-            ))}
-            <Chip
-              label="Adicionar novo"
-              icon="plus"
-              variant="default"
-              size="sm"
-            />
-          </View>
-        </Card>
+          {editing ? (
+            <View style={styles.form}>
+              <Field label="Nome" icon="person-outline" value={form.display_name} onChangeText={v => setForm(p => ({ ...p, display_name: v }))} placeholder="Seu nome" />
+              <Field label="Bio" icon="chatbubble-outline" value={form.bio} onChangeText={v => setForm(p => ({ ...p, bio: v }))} placeholder="Conte sobre você..." multiline maxLength={200} />
+              <Field label="Curso" icon="school-outline" value={form.course} onChangeText={v => setForm(p => ({ ...p, course: v }))} placeholder="Ex: Engenharia de Software" />
+              <Field label="Campus" icon="location-outline" value={form.campus} onChangeText={v => setForm(p => ({ ...p, campus: v }))} placeholder="Ex: Campus Central" />
 
-        {/* Settings Section */}
-        <Card style={styles.sectionCard} variant="surface">
-          <Text style={styles.sectionTitle}>Configurações</Text>
-
-          <TouchableOpacity style={styles.settingsItem}>
-            <MaterialCommunityIcons
-              name="cog"
-              size={20}
-              color={colors.gray}
-            />
-            <Text style={styles.settingsLabel}>Privacidade</Text>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={colors.gray}
-              style={styles.settingsChevron}
-            />
-          </TouchableOpacity>
-
-          <Divider variant="horizontal" margin={false} />
-
-          <TouchableOpacity style={styles.settingsItem}>
-            <MaterialCommunityIcons
-              name="bell"
-              size={20}
-              color={colors.gray}
-            />
-            <Text style={styles.settingsLabel}>Notificações</Text>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={colors.gray}
-              style={styles.settingsChevron}
-            />
-          </TouchableOpacity>
-
-          <Divider variant="horizontal" margin={false} />
-
-          <TouchableOpacity style={styles.settingsItem}>
-            <MaterialCommunityIcons
-              name="shield-account"
-              size={20}
-              color={colors.gray}
-            />
-            <Text style={styles.settingsLabel}>Segurança</Text>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={colors.gray}
-              style={styles.settingsChevron}
-            />
-          </TouchableOpacity>
-        </Card>
-
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Sair da Conta</Text>
-        </TouchableOpacity>
+              <View style={styles.formActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}>
+                  <Text style={styles.cancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+                  <LinearGradient colors={['#FF4B6E', '#C9284A']} style={styles.saveBtnGradient}>
+                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar'}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.infoList}>
+              <InfoRow icon="person-outline" label="Nome" value={profile?.display_name} />
+              <InfoRow icon="chatbubble-outline" label="Bio" value={profile?.bio} />
+              <InfoRow icon="school-outline" label="Curso" value={profile?.course} />
+              <InfoRow icon="location-outline" label="Campus" value={profile?.campus} />
+            </View>
+          )}
+        </View>
       </ScrollView>
+    </View>
+  );
+}
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 8 }]}>
-        {[
-          { id: 'home', label: 'Início' },
-          { id: 'match', label: 'Matches' },
-          { id: 'chat', label: 'Mensagens' },
-          { id: 'profile', label: 'Perfil' },
-        ].map((tab) => {
-          let iconName = 'circle';
-          if (tab.id === 'home') iconName = bottomNavActive === tab.id ? 'flame' : 'flame-outline';
-          else if (tab.id === 'match') iconName = bottomNavActive === tab.id ? 'heart' : 'heart-outline';
-          else if (tab.id === 'chat') iconName = bottomNavActive === tab.id ? 'chatbubble' : 'chatbubble-outline';
-          else if (tab.id === 'profile') iconName = bottomNavActive === tab.id ? 'person-circle' : 'person-circle-outline';
-
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              style={styles.navItem}
-              onPress={() => {
-                setBottomNavActive(tab.id);
-                if (tab.id === 'home') navigation.navigate('HomeTab');
-                else if (tab.id === 'match') navigation.navigate('MatchesTab');
-                else if (tab.id === 'chat') navigation.navigate('MatchesTab');
-                else if (tab.id === 'profile') navigation.navigate('ProfileTab');
-              }}
-            >
-              <Ionicons
-                name={iconName}
-                size={24}
-                color={bottomNavActive === tab.id ? colors.primary : colors.gray}
-              />
-              <Text style={[styles.navLabel, bottomNavActive === tab.id && styles.navLabelActive]}>{tab.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+function Field({ label, icon, value, onChangeText, placeholder, multiline, maxLength }) {
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={[styles.fieldWrap, multiline && styles.fieldWrapMulti]}>
+        <Ionicons name={icon} size={18} color="#9898B3" style={styles.fieldIcon} />
+        <TextInput
+          style={[styles.fieldInput, multiline && styles.fieldInputMulti]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#555570"
+          multiline={multiline}
+          maxLength={maxLength}
+          autoCapitalize="sentences"
+          autoCorrect={false}
+        />
       </View>
-    </LinearGradient>
+      {multiline && value?.length > 0 && (
+        <Text style={styles.charCount}>{value.length}/{maxLength}</Text>
+      )}
+    </View>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  if (!value) return null;
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={16} color="#9898B3" />
+      <View style={styles.infoRowContent}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  profileCard: {
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-  },
-  profileGradient: {
-    padding: spacing.lg,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: spacing.lg,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarEmoji: {
-    fontSize: 40,
-  },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  name: {
-    fontSize: fonts.sizes.lg,
-    fontWeight: '700',
-    color: colors.white,
-    marginRight: spacing.xs,
-  },
-  verifiedBadge: {
-    marginTop: 2,
-  },
-  age: {
-    fontSize: fonts.sizes.sm,
-    color: colors.gray,
-    marginBottom: spacing.xs,
-  },
-  course: {
-    fontSize: fonts.sizes.sm,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  shareButton: {
-    padding: spacing.sm,
-  },
-  bioContainer: {
-    marginTop: spacing.md,
-  },
-  bio: {
-    fontSize: fonts.sizes.md,
-    color: colors.offWhite,
-    lineHeight: 22,
-    marginBottom: spacing.md,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  location: {
-    fontSize: fonts.sizes.sm,
-    color: colors.gray,
-    marginLeft: spacing.xs,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  sectionCard: {
-    marginBottom: spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: fonts.sizes.lg,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  addButton: {
-    padding: spacing.xs,
-  },
-  photosGrid: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  photoItem: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: radius.md,
-    backgroundColor: colors.darkCard,
-    borderWidth: 2,
-    borderColor: colors.darkBorder,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoItemFilled: {
-    borderStyle: 'solid',
-    borderColor: colors.primary,
-    borderWidth: 1,
-  },
-  photoPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoEmoji: {
-    fontSize: 32,
-  },
-  interests: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  settingsLabel: {
-    flex: 1,
-    fontSize: fonts.sizes.md,
-    color: colors.white,
-    fontWeight: '500',
-    marginLeft: spacing.md,
-  },
-  settingsChevron: {
-    marginLeft: 'auto',
-  },
-  logoutButton: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.darkBorder,
-  },
-  logoutText: {
-    fontSize: fonts.sizes.md,
-    fontWeight: '600',
-    color: colors.error,
-  },
-  bottomNav: { flexDirection: 'row', backgroundColor: colors.dark, borderTopWidth: 1, borderTopColor: colors.darkBorder, paddingTop: 10 },
-  navItem: { flex: 1, alignItems: 'center', gap: 3 },
-  navLabel: { fontSize: 11, color: colors.gray },
-  navLabelActive: { color: colors.primary, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: '#0D0D1A' },
+  scroll: { paddingBottom: 40 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
+  title: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
+  logoutBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#1E1E35', alignItems: 'center', justifyContent: 'center' },
+  avatarSection: { alignItems: 'center', paddingVertical: 24, gap: 6 },
+  avatarTap: { position: 'relative', marginBottom: 8 },
+  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#1E1E35' },
+  avatarFallback: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
+  avatarInitials: { fontSize: 40, fontWeight: '700' },
+  avatarEdit: { position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF4B6E', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#0D0D1A' },
+  profileName: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  profileAge: { fontSize: 15, color: '#9898B3' },
+  profileEmail: { fontSize: 14, color: '#555570' },
+  section: { marginHorizontal: 20, marginTop: 24 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  editLink: { color: '#FF4B6E', fontSize: 15, fontWeight: '600' },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  photoWrap: { position: 'relative' },
+  photoThumb: { width: 90, height: 90, borderRadius: 12, backgroundColor: '#1E1E35' },
+  photoDelete: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
+  photoPrimary: { position: 'absolute', bottom: 4, left: 4, backgroundColor: '#FF4B6E', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  photoPrimaryText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  photoAdd: { width: 90, height: 90, borderRadius: 12, backgroundColor: '#1E1E35', borderWidth: 1.5, borderColor: '#2A2A45', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  infoList: { gap: 14 },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoRowContent: { flex: 1, gap: 2 },
+  infoLabel: { fontSize: 12, color: '#555570', fontWeight: '500' },
+  infoValue: { fontSize: 15, color: '#E0E0F0' },
+  form: { gap: 14 },
+  fieldGroup: {},
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#C4C4D8', marginBottom: 8 },
+  fieldWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E1E35', borderRadius: 12, borderWidth: 1.5, borderColor: '#2A2A45', paddingHorizontal: 14, height: 52 },
+  fieldWrapMulti: { height: 100, alignItems: 'flex-start', paddingVertical: 12 },
+  fieldIcon: { marginRight: 10, marginTop: 2 },
+  fieldInput: { flex: 1, color: '#fff', fontSize: 15 },
+  fieldInputMulti: { textAlignVertical: 'top' },
+  charCount: { color: '#555570', fontSize: 12, textAlign: 'right', marginTop: 4 },
+  formActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  cancelBtn: { flex: 1, height: 50, borderRadius: 12, borderWidth: 1.5, borderColor: '#2A2A45', alignItems: 'center', justifyContent: 'center' },
+  cancelBtnText: { color: '#9898B3', fontSize: 15, fontWeight: '600' },
+  saveBtn: { flex: 2, borderRadius: 12, overflow: 'hidden' },
+  saveBtnGradient: { height: 50, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

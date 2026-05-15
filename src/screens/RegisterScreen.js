@@ -5,21 +5,46 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Animated,
-  Dimensions,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
-
-const { width } = Dimensions.get('window');
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import * as api from '../services/api';
 
 const COURSES = ['Engenharia', 'Direito', 'Medicina', 'ADM', 'TI', 'Psicologia', 'Arquitetura', 'Outros'];
 
+function InputField({ label, icon, value, onChangeText, placeholder, secureTextEntry, keyboardType, multiline, maxLength, rightElement, focused, onFocus, onBlur }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={[styles.inputWrapper, focused && styles.inputWrapperFocused, multiline && styles.inputWrapperMulti]}>
+        <Ionicons name={icon} size={20} color={focused ? '#FF4B6E' : '#9898B3'} style={styles.inputIcon} />
+        <TextInput
+          style={[styles.input, multiline && styles.inputMulti]}
+          placeholder={placeholder}
+          placeholderTextColor="#555570"
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType || 'default'}
+          multiline={multiline}
+          maxLength={maxLength}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+          autoCorrect={false}
+        />
+        {rightElement}
+      </View>
+    </View>
+  );
+}
+
 export default function RegisterScreen({ navigation }) {
+  const { register } = useAuth();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -47,64 +72,35 @@ export default function RegisterScreen({ navigation }) {
     setStep(s);
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    if (!name.trim()) {
+      Alert.alert('Atenção', 'Informe seu nome.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Atenção', 'As senhas não coincidem.');
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      try {
-        let root = navigation;
-        while (root.getParent && root.getParent() != null) {
-          root = root.getParent();
-        }
-        root.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'App' }],
-          })
-        );
-      } catch (e) {
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'App' }],
-          })
-        );
+    try {
+      await register(email.trim().toLowerCase(), password, name.trim());
+      if (bio.trim() || course) {
+        await api.updateProfile({
+          bio: bio.trim() || undefined,
+          course: course || undefined,
+        });
       }
-    }, 1500);
+    } catch (err) {
+      Alert.alert('Erro ao criar conta', err.message || 'Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
     outputRange: ['33%', '100%'],
   });
-
-  const InputField = ({ label, icon, iconFamily, value, onChangeText, placeholder, secureTextEntry, keyboardType, multiline, maxLength, rightElement, focused, onFocus, onBlur }) => {
-    const IconComponent = iconFamily === 'Ionicons' ? Ionicons : MaterialCommunityIcons;
-    return (
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>{label}</Text>
-        <View style={[styles.inputWrapper, focused && styles.inputWrapperFocused, multiline && styles.inputWrapperMulti]}>
-          <IconComponent name={icon} size={20} color={focused ? '#FF4B6E' : '#9898B3'} style={styles.inputIcon} />
-        <TextInput
-          style={[styles.input, multiline && styles.inputMulti]}
-          placeholder={placeholder}
-          placeholderTextColor="#555570"
-          value={value}
-          onChangeText={onChangeText}
-          secureTextEntry={secureTextEntry}
-          keyboardType={keyboardType || 'default'}
-          multiline={multiline}
-          maxLength={maxLength}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-          autoCorrect={false}
-        />
-        {rightElement}
-        </View>
-      </View>
-    );
-  };
 
   const [focusStates, setFocusStates] = useState({});
   const setFocus = (key, val) => setFocusStates(prev => ({ ...prev, [key]: val }));
@@ -114,13 +110,12 @@ export default function RegisterScreen({ navigation }) {
       <View style={styles.blob1} />
       <View style={styles.blob2} />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Top bar */}
           <View style={styles.topBar}>
             <TouchableOpacity style={styles.backButton} onPress={() => step > 1 ? goToStep(step - 1) : navigation.goBack()}>
-              <MaterialCommunityIcons name="chevron-left" size={24} color="#9898B3" />
+              <Ionicons name="chevron-back" size={24} color="#9898B3" />
             </TouchableOpacity>
             <Text style={styles.stepLabel}>Passo {step} de 3</Text>
             <View style={{ width: 44 }} />
@@ -148,16 +143,16 @@ export default function RegisterScreen({ navigation }) {
           {/* Step 1 - Basic info */}
           {step === 1 && (
             <View style={styles.form}>
-              <InputField label="Nome completo" icon="person-outline" iconFamily="Ionicons" value={name} onChangeText={setName} placeholder="Como você se chama?" focused={focusStates.name} onFocus={() => setFocus('name', true)} onBlur={() => setFocus('name', false)} />
-              <InputField label="E-mail institucional" icon="mail-outline" iconFamily="Ionicons" value={email} onChangeText={setEmail} placeholder="seu@faculdade.edu.br" keyboardType="email-address" focused={focusStates.email} onFocus={() => setFocus('email', true)} onBlur={() => setFocus('email', false)} />
-              <InputField label="Senha" icon="lock-closed-outline" iconFamily="Ionicons" value={password} onChangeText={setPassword} placeholder="Mínimo 8 caracteres" secureTextEntry={!showPassword} focused={focusStates.pass} onFocus={() => setFocus('pass', true)} onBlur={() => setFocus('pass', false)}
+              <InputField label="Nome completo" icon="person-outline" value={name} onChangeText={setName} placeholder="Como você se chama?" focused={focusStates.name} onFocus={() => setFocus('name', true)} onBlur={() => setFocus('name', false)} />
+              <InputField label="E-mail" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="seu@email.com" keyboardType="email-address" focused={focusStates.email} onFocus={() => setFocus('email', true)} onBlur={() => setFocus('email', false)} />
+              <InputField label="Senha" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="Mínimo 8 caracteres" secureTextEntry={!showPassword} focused={focusStates.pass} onFocus={() => setFocus('pass', true)} onBlur={() => setFocus('pass', false)}
                 rightElement={
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                     <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#9898B3" />
                   </TouchableOpacity>
                 }
               />
-              <InputField label="Confirmar senha" icon="shield-checkmark-outline" iconFamily="Ionicons" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Repita sua senha" secureTextEntry focused={focusStates.conf} onFocus={() => setFocus('conf', true)} onBlur={() => setFocus('conf', false)} />
+              <InputField label="Confirmar senha" icon="shield-checkmark-outline" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Repita sua senha" secureTextEntry focused={focusStates.conf} onFocus={() => setFocus('conf', true)} onBlur={() => setFocus('conf', false)} />
               <TouchableOpacity onPress={() => goToStep(2)} style={styles.continueBtn}>
                 <LinearGradient colors={['#FF4B6E', '#C9284A']} style={styles.continueBtnInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                   <Text style={styles.continueBtnText}>Continuar →</Text>
@@ -178,7 +173,7 @@ export default function RegisterScreen({ navigation }) {
                 ))}
               </View>
 
-              <InputField label="Semestre atual" icon="school-outline" iconFamily="Ionicons" value={semester} onChangeText={setSemester} placeholder="Ex: 4º semestre" keyboardType="number-pad" focused={focusStates.sem} onFocus={() => setFocus('sem', true)} onBlur={() => setFocus('sem', false)} />
+              <InputField label="Semestre atual" icon="school-outline" value={semester} onChangeText={setSemester} placeholder="Ex: 4º semestre" keyboardType="number-pad" focused={focusStates.sem} onFocus={() => setFocus('sem', true)} onBlur={() => setFocus('sem', false)} />
 
               <Text style={styles.label}>Gênero</Text>
               <View style={styles.genderRow}>
@@ -200,7 +195,7 @@ export default function RegisterScreen({ navigation }) {
           {/* Step 3 - Bio */}
           {step === 3 && (
             <View style={styles.form}>
-              <InputField label="Bio (opcional)" icon="chatbubble-outline" iconFamily="Ionicons" value={bio} onChangeText={setBio} placeholder="Me conta um pouco sobre você..." multiline maxLength={200} focused={focusStates.bio} onFocus={() => setFocus('bio', true)} onBlur={() => setFocus('bio', false)} />
+              <InputField label="Bio (opcional)" icon="chatbubble-outline" value={bio} onChangeText={setBio} placeholder="Me conta um pouco sobre você..." multiline maxLength={200} focused={focusStates.bio} onFocus={() => setFocus('bio', true)} onBlur={() => setFocus('bio', false)} />
               {bio.length > 0 && <Text style={styles.charCount}>{bio.length}/200</Text>}
 
               <View style={styles.termsBox}>
@@ -227,8 +222,7 @@ export default function RegisterScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </LinearGradient>
   );
 }
