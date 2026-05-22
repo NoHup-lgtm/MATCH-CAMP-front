@@ -31,6 +31,13 @@
         {
           "photosPermission": "O app precisa de acesso à sua galeria para adicionar fotos ao perfil."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF4B6E"
+        }
       ]
     ]
   }

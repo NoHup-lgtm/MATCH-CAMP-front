@@ -49,6 +49,15 @@ export const register = (email, password, displayName) =>
 
 export const logout = () => request('POST', '/v1/auth/logout');
 
+export const forgotPassword = (email) =>
+  request('POST', '/v1/auth/forgot-password', { email });
+
+export const resetPassword = (token, password) =>
+  request('POST', '/v1/auth/reset-password', { token, password });
+
+export const updatePushToken = (token) =>
+  request('PUT', '/v1/me/push-token', { token });
+
 export const getGoogleAuthURL = () => `${API_URL}/v1/auth/google`;
 
 // Profile
