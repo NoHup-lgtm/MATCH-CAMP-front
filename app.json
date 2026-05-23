@@ -2,6 +2,7 @@
   "expo": {
     "name": "MatchCamp",
     "slug": "matchcamp",
+    "scheme": "matchcamp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
