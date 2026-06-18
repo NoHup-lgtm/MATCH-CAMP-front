@@ -104,7 +104,10 @@ export const getMessages = (conversationId, params = {}) => {
 };
 
 export const sendMessage = (conversationId, text) =>
-  request('POST', `/v1/conversations/${conversationId}/messages`, { body: text });
+  request('POST', `/v1/conversations/${conversationId}/messages`, {
+    conversation_id: conversationId,
+    text,
+  });
 
 // Public profile
 export const getPublicProfile = (userId) =>
